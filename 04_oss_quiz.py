@@ -84,6 +84,11 @@ difficulty = st.selectbox(
     ["쉬움", "보통", "어려움"]
 )
 
+question_count = st.selectbox(
+    "문제 수를 선택하세요.",
+    [3, 5]
+)
+
 
 # 새로운 문제 생성
 if st.button("새 문제 생성", type="primary"):
