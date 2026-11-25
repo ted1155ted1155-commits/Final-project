@@ -72,27 +72,44 @@ if "quiz" not in st.session_state:
     st.session_state.show_hint = False
     st.session_state.show_answer = False
 
+if "current_question" not in st.session_state:
+    st.session_state.current_question = 1
+
+if "score" not in st.session_state:
+    st.session_state.score = 0
+
+if "answered" not in st.session_state:
+    st.session_state.answered = False
+
+if "graded_choice" not in st.session_state:
+    st.session_state.graded_choice = None
+
+if "quiz_count" not in st.session_state:
+    st.session_state.quiz_count = None
+
 
 # 학습 주제 선택
 topic = st.selectbox(
     "학습할 주제를 선택하세요.",
-    ["OSS", "Git", "Python"]
+    ["OSS", "Git", "Python"],
+    disabled=st.session_state.quiz_count is not None
 )
 
 difficulty = st.selectbox(
     "난이도를 선택하세요.",
-    ["쉬움", "보통", "어려움"]
+    ["쉬움", "보통", "어려움"],
+    disabled=st.session_state.quiz_count is not None
 )
 
 question_count = st.selectbox(
     "문제 수를 선택하세요.",
-    [3, 5]
+    [3, 5],
+    disabled=st.session_state.quiz_count is not None
 )
 
 
-# 새로운 문제 생성
-if st.button("새 문제 생성", type="primary"):
-
+def generate_quiz(next_question):
+    """새 문제가 준비된 경우에만 진행 상태를 갱신한다."""
     with st.spinner("AI가 문제를 생성하고 있습니다..."):
         try:
             response = client.models.generate_content(
@@ -111,23 +128,34 @@ if st.button("새 문제 생성", type="primary"):
             )
 
             quiz = json.loads(response.text)
-
-            # 문제 형식 검사
             if (
                 len(quiz["options"]) != 4
                 or not 0 <= quiz["correct_index"] <= 3
             ):
                 raise ValueError("문제 형식이 올바르지 않습니다.")
 
-            # 문제 저장
             st.session_state.quiz = quiz
             st.session_state.quiz_topic = topic
             st.session_state.quiz_id += 1
+            st.session_state.current_question = next_question
+            st.session_state.quiz_count = question_count
             st.session_state.show_hint = False
             st.session_state.show_answer = False
+            st.session_state.answered = False
+            st.session_state.graded_choice = None
+            return True
 
         except Exception as e:
             st.error(f"문제 생성 오류: {type(e).__name__}: {e}")
+            return False
+
+# 새로운 문제 생성
+if st.session_state.quiz is None and st.button("새 문제 생성", type="primary"):
+    generate_quiz(1)
+
+st.write(f"현재 문제: {st.session_state.current_question} / {st.session_state.quiz_count or question_count}")
+score_display = st.empty()
+score_display.write(f"현재 점수: {st.session_state.score}")
 
 
 # 현재 선택한 주제의 문제 출력
@@ -148,7 +176,8 @@ if quiz is not None and st.session_state.quiz_topic == topic:
             f"{i + 1}. {quiz['options'][i]}"
         ),
         index=None,
-        key=f"answer_{st.session_state.quiz_id}"
+        key=f"answer_{st.session_state.quiz_id}",
+        disabled=st.session_state.answered
     )
 
     # 힌트 버튼
@@ -159,18 +188,22 @@ if quiz is not None and st.session_state.quiz_topic == topic:
         st.info(quiz["hint"])
 
     # 정답 확인 버튼
-    if st.button("정답 확인"):
+    if not st.session_state.answered and st.button("정답 확인"):
         if choice is None:
             st.warning("정답을 먼저 선택하세요.")
         else:
             st.session_state.show_answer = True
+            st.session_state.answered = True
+            st.session_state.graded_choice = choice
+            if choice == quiz["correct_index"]:
+                st.session_state.score += 1
 
     # Python으로 자동 채점
     if st.session_state.show_answer:
 
         correct = quiz["correct_index"]
 
-        if choice == correct:
+        if st.session_state.graded_choice == correct:
             st.success("정답입니다!")
         else:
             st.error("오답입니다.")
@@ -181,6 +214,28 @@ if quiz is not None and st.session_state.quiz_topic == topic:
         )
 
         st.write("해설:", quiz["explanation"])
+        score_display.write(f"현재 점수: {st.session_state.score}")
+
+        if st.session_state.current_question < st.session_state.quiz_count:
+            if st.button("다음 문제", type="primary"):
+                if generate_quiz(st.session_state.current_question + 1):
+                    st.rerun()
+        else:
+            st.success(
+                f"퀴즈 완료! 최종 점수: {st.session_state.score} / "
+                f"{st.session_state.quiz_count}"
+            )
+            if st.button("다시 시작", type="primary"):
+                st.session_state.quiz = None
+                st.session_state.quiz_topic = None
+                st.session_state.current_question = 1
+                st.session_state.score = 0
+                st.session_state.quiz_count = None
+                st.session_state.show_hint = False
+                st.session_state.show_answer = False
+                st.session_state.answered = False
+                st.session_state.graded_choice = None
+                st.rerun()
 
 elif quiz is None:
     st.info("학습 주제를 선택하고 새 문제 생성을 눌러 주세요.")
