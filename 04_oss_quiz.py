@@ -4,7 +4,7 @@ import json
 import streamlit as st
 from google import genai
 from google.genai import types
-
+from wrong_note import save_wrong_question, show_wrong_note
 MODEL = "gemini-3.5-flash-lite"
 
 st.title("🎓 DCU OSS AI Quiz")
@@ -153,7 +153,8 @@ if quiz is not None and st.session_state.quiz_topic == topic:
             st.warning("정답을 먼저 선택하세요.")
         else:
             st.session_state.show_answer = True
-
+            if choice != quiz["correct_index"]:
+                 save_wrong_question(quiz, choice)
     # Python으로 자동 채점
     if st.session_state.show_answer:
 
@@ -176,3 +177,6 @@ elif quiz is None:
 
 else:
     st.info("변경한 주제의 새 문제를 생성해 주세요.")
+
+st.divider()
+show_wrong_note()
