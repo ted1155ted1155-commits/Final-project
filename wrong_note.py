@@ -11,6 +11,9 @@ def init_wrong_note():
 def save_wrong_question(quiz, selected_index):
     init_wrong_note()
 
+    if selected_index == quiz["correct_index"]:
+        return
+
     st.session_state.wrong_notes.append({
         "question": quiz["question"],
         "options": quiz["options"].copy(),
@@ -38,5 +41,24 @@ def show_wrong_note():
         with st.expander(f"{i}. {note['question']}"):
             st.write("문제:", note["question"])
             st.error("내가 선택한 답: " + note["selected_answer"])
-            st.success("정답: " + note["correct_answer"])
-            st.write("해설:", note["explanation"])
+
+            # 오답 다시 풀기
+            retry = st.radio(
+                "다시 풀어보세요.",
+                range(len(note["options"])),
+                format_func=lambda x: note["options"][x],
+                key=f"retry_{i}",
+                index=None
+            )
+
+            if st.button("정답 확인", key=f"check_{i}"):
+                if retry is None:
+                    st.warning("답을 선택해주세요.")
+                elif retry == note["correct_index"]:
+                    st.success("정답입니다!")
+                else:
+                    st.error("틀렸습니다. 다시 도전하세요.")
+
+                if retry is not None:
+                    st.write("정답:", note["correct_answer"])
+                    st.write("해설:", note["explanation"])
